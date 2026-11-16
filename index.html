@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Favicon -->
-  <link rel="icon" type="image/png" href="https://aero-pvp.pages.dev/assets/images/mace-item.png">
-  <link rel="apple-touch-icon" href="https://aero-pvp.pages.dev/assets/images/mace-item.png">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aero PVP</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://aero-pvp.pages.dev/assets/images/mace-item.png">
+  <link rel="apple-touch-icon" href="https://aero-pvp.pages.dev/assets/images/mace-item.png">
   
   <!-- Base URL zodat alle relatieve paden hier vanaf lopen -->
   <base href="https://aero-pvp.pages.dev/">
@@ -155,11 +156,12 @@
       text-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
 
-    /* --- IP BUBBLE (super minimalistisch, witte border) --- */
+    /* --- IP BUBBLE (klik = kopiëren) --- */
     .ip-bubble {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       padding: 14px 28px;
       border-radius: 999px;
       font-family: 'Inter', sans-serif;
@@ -172,12 +174,49 @@
       transition: color 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
       cursor: pointer;
       font-variant-numeric: tabular-nums;
+      position: relative;
+      user-select: none;
     }
 
     .ip-bubble:hover {
       color: #fff;
       border-color: rgba(255, 255, 255, 0.9);
       background: rgba(255, 255, 255, 0.04);
+    }
+
+    .ip-bubble .copy-icon {
+      width: 14px;
+      height: 14px;
+      opacity: 0.7;
+      flex-shrink: 0;
+      transition: opacity 0.3s;
+    }
+
+    .ip-bubble:hover .copy-icon {
+      opacity: 1;
+    }
+
+    .ip-bubble.copied {
+      border-color: rgba(74, 222, 128, 0.8);
+      color: #4ade80;
+    }
+
+    .ip-bubble .copy-feedback {
+      position: absolute;
+      bottom: -32px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #4ade80;
+      opacity: 0;
+      transition: opacity 0.3s;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .ip-bubble.copied .copy-feedback {
+      opacity: 1;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -595,8 +634,12 @@
   <div class="hero">
     <div class="hero-content">
       <h1>Aero PvP</h1>
-      <p>The premier Minecraft experience.</p>
-      <a href="https://aero-pvp.play.hosting" target="_blank" rel="noopener" class="ip-bubble">aero-pvp.play.hosting</a>
+      <p>The best PVP server OAT!</p>
+      <button type="button" class="ip-bubble" id="ipBubble" data-ip="aero-pvp.play.hosting">
+        <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <span class="ip-text">aero-pvp.play.hosting</span>
+        <span class="copy-feedback">Copied!</span>
+      </button>
     </div>
   </div>
 
@@ -775,6 +818,35 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
+      // --- IP bubble copy ---
+      const ipBubble = document.getElementById('ipBubble');
+      const ipText = ipBubble.querySelector('.ip-text');
+      const ip = ipBubble.getAttribute('data-ip');
+
+      ipBubble.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(ip);
+        } catch (err) {
+          // fallback voor oudere browsers
+          const ta = document.createElement('textarea');
+          ta.value = ip;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        ipBubble.classList.add('copied');
+        const originalText = ipText.textContent;
+        ipText.textContent = 'Copied!';
+        setTimeout(() => {
+          ipBubble.classList.remove('copied');
+          ipText.textContent = originalText;
+        }, 1500);
+      });
+
+      // --- Leaderboard data ---
       const API_URL = "https://mckeepalivebots-a1.onrender.com/aero/stats/all";
       const tabs = document.querySelectorAll('.lb-gamemode');
       const leaderboardBody = document.getElementById('leaderboard-body');
@@ -785,7 +857,6 @@
       let allData = {};
       let currentMode = "Crystal PVP";
 
-      // Helper om een rij te bouwen
       function createRow(player, rating, rank) {
         const rankClass = rank === 1 ? 'rank-1' : '';
         return `
@@ -800,7 +871,6 @@
         `;
       }
 
-      // Helper voor de top spelers badges
       function updateTopBadges(container, players) {
         let html = '';
         players.slice(0, 3).forEach((p, i) => {
@@ -811,7 +881,6 @@
         container.innerHTML = html;
       }
 
-      // Update de leaderboard tabel
       function renderTable(mode) {
         leaderboardBody.innerHTML = '';
         const data = allData[mode] || [];
@@ -821,24 +890,18 @@
           return;
         }
 
-        // Toon top 5 in de tabel
         data.slice(0, 5).forEach((p, i) => {
           leaderboardBody.innerHTML += createRow(p.player, p.rating, i + 1);
         });
       }
 
-      // Haal data op
       fetch(API_URL)
         .then(res => res.json())
         .then(data => {
           allData = data;
-          
-          // Vul de top 3 badges in de arena kaarten
           if (data["Mace"]) updateTopBadges(topMace, data["Mace"]);
           if (data["Crystal PVP"]) updateTopBadges(topCrystal, data["Crystal PVP"]);
           if (data["Sword"]) updateTopBadges(topSword, data["Sword"]);
-
-          // Render de standaard tabel (Crystal PVP)
           renderTable(currentMode);
         })
         .catch(err => {
@@ -846,15 +909,10 @@
           leaderboardBody.innerHTML = `<div class="lb-row"><div class="col-rank"><div class="rank-box">-</div></div><div class="col-player"><span class="lb-player-name">Fout bij laden</span></div><div class="col-points">-</div></div>`;
         });
 
-      // Tab switching
       tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-          // Verwijder active class van alle tabs
           tabs.forEach(t => t.classList.remove('active'));
-          // Voeg active class toe aan geklikte tab
           tab.classList.add('active');
-          
-          // Update de tabel
           const mode = tab.getAttribute('data-mode');
           currentMode = mode;
           renderTable(mode);
